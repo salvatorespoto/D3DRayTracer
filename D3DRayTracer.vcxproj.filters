@@ -21,12 +21,24 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="D3D12RayTracer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DXDeviceResources.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="D3D12RayTracerApp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="D3D12RayTracer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DXDeviceResources.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

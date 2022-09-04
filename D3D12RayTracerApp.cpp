@@ -1,5 +1,8 @@
 #include "D3D12RayTracerApp.h"
 
+#include "D3D12RayTracer.h"
+
+
 D3D12RayTracerApp::D3D12RayTracerApp(const HINSTANCE& hInstance, UINT ClientWidth, UINT ClientHeight) 
 	: m_hInstance(hInstance), m_hWnd(NULL), m_clientWidth(ClientWidth), m_clientHeight(ClientHeight)
 {}
@@ -61,9 +64,18 @@ void D3D12RayTracerApp::InitWindow()
 	LOG("Application Window initialized");
 }
 
+void D3D12RayTracerApp::InitRayTracer()
+{
+	m_rayTracer = std::make_unique<D3D12RayTracer>();
+	m_rayTracer->Init(m_hWnd, m_clientWidth, m_clientHeight);
+}
 
 int D3D12RayTracerApp::Run()
 {
+	InitWindow();
+
+	InitRayTracer();
+	
 	ShowWindow(m_hWnd, SW_MAXIMIZE);
 	SetForegroundWindow(m_hWnd);
 	SetFocus(m_hWnd);
@@ -87,7 +99,7 @@ int D3D12RayTracerApp::Run()
 	}
 	OnDestroy();
 
-	LOG("Leaving application main loop");
+	LOG("Received WM_QUIT: leaving application main loop");
 	return (int)msg.wParam;
 }
 

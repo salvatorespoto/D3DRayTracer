@@ -2,8 +2,10 @@
 
 #include "includes/common.h"
 
+class D3D12RayTracer;
+
 /**
- * This class handle the life cycle of the application
+ * Handle the life cycle of the application: 
  */
 class D3D12RayTracerApp
 {
@@ -16,6 +18,9 @@ public:
 public:
 	/** Create the app windows */
 	virtual void InitWindow();
+
+	/** Create the ray tracer */
+	void InitRayTracer();
 
 	/** App running cycle */
 	int Run();
@@ -44,9 +49,11 @@ public:
 private:
 
 	HINSTANCE m_hInstance;
-	HWND m_hWnd;			// Handle to the main window application
+	HWND m_hWnd;			// Handle to the main window
 
 	// Window client dimensions
 	UINT m_clientWidth;
 	UINT m_clientHeight;
+
+	std::unique_ptr<D3D12RayTracer> m_rayTracer;
 };
