@@ -12,14 +12,16 @@ DXDeviceResources::DXDeviceResources()
 	, m_adapterID(0)
 	, m_optionsFlags(c_AllowTearingFlag)
 	, m_dxrDevice(nullptr)
+	, m_backBufferCount(3)
 {}
 
-DXDeviceResources::DXDeviceResources(D3D_FEATURE_LEVEL minFeatureLevel, UINT flags)
+DXDeviceResources::DXDeviceResources(D3D_FEATURE_LEVEL minFeatureLevel, UINT flags, UINT backBufferCount)
 	: m_D3DMinFeatureLevel(minFeatureLevel)
 	, m_optionsFlags(flags)
 	, m_adapterDescription(nullptr)
 	, m_adapterID(0)
 	, m_dxrDevice(nullptr)
+	, m_backBufferCount(backBufferCount)
 {}
 
 void DXDeviceResources::Init()
@@ -36,6 +38,7 @@ void DXDeviceResources::Init()
 #endif
 
 	CreateDevice();
+	CreateCommandObjects();
 }
 
 void DXDeviceResources::EnableDebugLayer()
@@ -210,4 +213,31 @@ void DXDeviceResources::CreateDevice()
 	LOG("D3D12 device created.")
 }
 
+void DXDeviceResources::CreateCommandObjects()
+{
+	// Create command queue
+	D3D12_COMMAND_QUEUE_DESC cqDesc = { 
+		D3D12_COMMAND_LIST_TYPE_DIRECT, 
+		D3D12_COMMAND_QUEUE_PRIORITY_NORMAL, 
+		D3D12_COMMAND_QUEUE_FLAG_NONE, 
+		1 };
+	ThrowIfFailed(m_dxrDevice->CreateCommandQueue(&cqDesc, IID_PPV_ARGS(&m_commandQueue)), 
+		"Cannot create command queue");
+
+	// Create a command allocator for each back buffer
+	for (UINT n = 0; n < m_backBufferCount; n++)
+	{
+		ThrowIfFailed(m_dxrDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[n]))
+			, "Cannot crate command allocator");
+	}
+
+	// Create a command list for recording graphics commands.	
+	ThrowIfFailed(m_dxrDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[0].Get(), nullptr, IID_PPV_ARGS(&m_commandList))
+		, "Cannot create command allocator");
+
+	ThrowIfFailed(m_commandList->Close()
+		, "Cannot close command list");
+
+	LOG("Created command queue, allocators and list")
+}
 #pragma endregion
