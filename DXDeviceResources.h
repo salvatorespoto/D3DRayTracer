@@ -21,7 +21,7 @@ public:
 	void Init();
 	void EnableDebugLayer();
 	void CheckTearingSupport();
-	void InitializeDXGI();
+	void InitializeDXGIAdapter();
 
 private:
 	D3D_FEATURE_LEVEL					  m_D3DMinFeatureLevel; // Min feature level required from this app
@@ -37,13 +37,17 @@ public:
 
 	/* Acquire the first high performance hardware adapter that supports Direct3D 12.
 	   If no such adapter can be found, try WARP. Otherwise throw an exception. */
-	void InitializeAdapter();
+	void CreateDevice();
 	
 private:
 	UINT								  m_adapterID;
 	LPCWSTR                               m_adapterDescription;
 	Microsoft::WRL::ComPtr<IDXGIAdapter1> m_adapter;
 	std::vector<DXGI_MODE_DESC>           m_displayModes;
+#pragma endregion
+
+#pragma region Device
+	Microsoft::WRL::ComPtr<ID3D12Device5> m_dxrDevice;
 #pragma endregion
 
 #pragma region Getters

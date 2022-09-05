@@ -11,6 +11,7 @@ DXDeviceResources::DXDeviceResources()
 	, m_adapterDescription(nullptr)
 	, m_adapterID(0)
 	, m_optionsFlags(c_AllowTearingFlag)
+	, m_dxrDevice(nullptr)
 {}
 
 DXDeviceResources::DXDeviceResources(D3D_FEATURE_LEVEL minFeatureLevel, UINT flags)
@@ -18,6 +19,7 @@ DXDeviceResources::DXDeviceResources(D3D_FEATURE_LEVEL minFeatureLevel, UINT fla
 	, m_optionsFlags(flags)
 	, m_adapterDescription(nullptr)
 	, m_adapterID(0)
+	, m_dxrDevice(nullptr)
 {}
 
 void DXDeviceResources::Init()
@@ -27,13 +29,13 @@ void DXDeviceResources::Init()
 #endif
 
 	CheckTearingSupport();
-	InitializeDXGI();
+	InitializeDXGIAdapter();
 
 #if defined(_DEBUG)
 	PrintAdaptersInfo();
 #endif
 
-	CreateDeviceAdapter();
+	CreateDevice();
 }
 
 void DXDeviceResources::EnableDebugLayer()
@@ -88,14 +90,46 @@ void DXDeviceResources::CheckTearingSupport()
 	}
 }
 
-void DXDeviceResources::InitializeDXGI()
+void DXDeviceResources::InitializeDXGIAdapter()
 {
-	bool debugDXGI = false;
+	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&m_dxgiFactory)), "Cannot Create DXGIFactory");
 
-	if (!debugDXGI)
+	ComPtr<IDXGIAdapter1> adapter;
+	ComPtr<IDXGIFactory6> factory6;
+
+	ThrowIfFailed(m_dxgiFactory.As(&factory6), ("DXGI 1.6 not supported"));
+
+	// Choose the GPU that offers the maximum performances
+	for (UINT adapterID = 0; DXGI_ERROR_NOT_FOUND != factory6->EnumAdapterByGpuPreference(adapterID, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&adapter)); ++adapterID)
 	{
-		ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&m_dxgiFactory)), "Cannot Create DXGIFactory");
+		DXGI_ADAPTER_DESC1 desc;
+		ThrowIfFailed(adapter->GetDesc1(&desc), "Cannot get adapter description");
+
+		if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+		{
+			// Exclude the Basic Render Driver adapter.
+			continue;
+		}
+
+		// Check to see if the adapter supports Direct3D 12, but don't create the actual device yet.
+		if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), m_D3DMinFeatureLevel, _uuidof(ID3D12Device), nullptr)))
+		{
+			m_adapterID = adapterID;
+			m_adapterDescription = desc.Description;
+			LOG("Direct3D Adapter (" << adapterID << "): VID: " << desc.VendorId << ", PID : " << desc.DeviceId << " - " << desc.Description);
+			break;
+		}
 	}
+
+	// Fall back on WARP software adapter
+	if (!adapter)
+	{
+		// Try WARP12 instead
+		ThrowIfFailed(m_dxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(&adapter)), "WARP12 not available. Enable the 'Graphics Tools' optional feature");
+		LOG("Direct3D Adapter - WARP12");
+	}
+
+	m_adapter = adapter.Detach();
 }
 
 #pragma region Adapters
@@ -148,7 +182,7 @@ void DXDeviceResources::PrintAdaptersInfo()
 	// Iterate over ADAPTERS and print info
 	for (ComPtr<IDXGIAdapter1> adapter : EnumerateAdapters())
 	{
-		DXGI_ADAPTER_DESC aDesc;	// Struct that holds the adapter descrdiption
+		DXGI_ADAPTER_DESC aDesc;	// Struct that holds the adapter description
 		adapter->GetDesc(&aDesc);	// Get the adapter description
 		LOG("--- Adapter: " << aDesc.Description)
 
@@ -157,53 +191,23 @@ void DXDeviceResources::PrintAdaptersInfo()
 			{
 				DXGI_OUTPUT_DESC oDesc;		// Struct that holds the output description
 				output->GetDesc(&oDesc);	// Get the output description
-				LOG("  Output: " << " Device name " << oDesc.DeviceName)
+				LOG("Output: " << " Device name " << oDesc.DeviceName)
 					// Iterate over ADAPTER OUTPUT DISPLAY MODES and print info
 					for (DXGI_MODE_DESC displayMode : EnumerateAdapterOutputDisplayModes(output.Get(), DXGI_FORMAT_B8G8R8A8_UNORM))
 					{
-						LOG("    Display mode: " << " Width " << displayMode.Width << " Height " << displayMode.Height)
+						LOG("Display mode: " << " Width " << displayMode.Width << " Height " << displayMode.Height)
 					}
 			}
 	}
 }
 
-void DXDeviceResources::CreateDeviceAdapter()
+void DXDeviceResources::CreateDevice()
 {
-	ComPtr<IDXGIAdapter1> adapter;
-	ComPtr<IDXGIFactory6> factory6;
-	ThrowIfFailed(m_dxgiFactory.As(&factory6), ("DXGI 1.6 not supported"));
+	// Create the DX12 API device object.
+	ThrowIfFailed(D3D12CreateDevice(m_adapter.Get(), m_D3DMinFeatureLevel, IID_PPV_ARGS(&m_dxrDevice)),
+		"Cannot create Direct3D device on default adapter");
 
-	// Choose the GPU that offers the maximum performances
-	for (UINT adapterID = 0; DXGI_ERROR_NOT_FOUND != factory6->EnumAdapterByGpuPreference(adapterID, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&adapter)); ++adapterID)
-	{
-		DXGI_ADAPTER_DESC1 desc;
-		ThrowIfFailed(adapter->GetDesc1(&desc), "Cannot get adapter description");
-
-		if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
-		{
-			// Exclude the Basic Render Driver adapter.
-			continue;
-		}
-
-		// Check to see if the adapter supports Direct3D 12, but don't create the actual device yet.
-		if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), m_D3DMinFeatureLevel, _uuidof(ID3D12Device), nullptr)))
-		{
-			m_adapterID = adapterID;
-			m_adapterDescription = desc.Description;
-			LOG("Direct3D Adapter (" << adapterID << "): VID: " << desc.VendorId << ", PID : " << desc.DeviceId << " - " << desc.Description);
-			break;
-		}
-	}
-
-	// Fall back on WARP software adapter
-	if (!adapter)
-	{
-		// Try WARP12 instead
-		ThrowIfFailed(m_dxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(&adapter)), "WARP12 not available. Enable the 'Graphics Tools' optional feature");
-		LOG("Direct3D Adapter - WARP12");
-	}
-
-	m_adapter = adapter.Detach();
+	LOG("D3D12 device created.")
 }
 
 #pragma endregion
